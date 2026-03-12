@@ -1,0 +1,29 @@
+{
+  "name": "stackbot",
+  "version": "1.0.0",
+  "description": "StackBot Telegram Trading Bot",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "ts-node src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@stacks/network": "^6.13.0",
+    "@stacks/transactions": "^6.16.0",
+    "@stacks/wallet-sdk": "^6.15.0",
+    "bip39": "^3.1.0",
+    "dotenv": "^16.4.5",
+    "pg": "^8.11.5",
+    "qrcode": "^1.5.4",
+    "redis": "^4.6.14",
+    "telegraf": "^4.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@types/pg": "^8.11.6",
+    "@types/qrcode": "^1.5.6",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}

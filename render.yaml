@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: stackbot
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: node dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: ENCRYPTION_SECRET
+        sync: false
+      - key: STACKS_NETWORK
+        value: testnet
