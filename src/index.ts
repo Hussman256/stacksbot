@@ -41,6 +41,16 @@ function checkRateLimit(userId: number, action: 'swap' | 'withdraw'): boolean {
   return true;
 }
 
+// ─── Address sanitizer ───────────────────────────────────────────────────────
+// Strips <> brackets, then extracts the first valid Stacks contract address
+// (handles Telegram auto-linking which can duplicate address+URL in paste)
+function sanitizeAddress(raw: string): string {
+  const cleaned = raw.replace(/[<>]/g, '').trim();
+  // A Stacks contract address: SP/ST + 38 base58 chars, then dot + contract name
+  const match = cleaned.match(/S[PT][A-Z0-9]{37,39}\.[a-zA-Z0-9_-]+/);
+  return match ? match[0] : cleaned;
+}
+
 // ─── Known tokens (mainnet addresses; testnet falls back to mock) ─────────────
 const MOCK = 'ST3EJF744V1TGZR3Q8H1K6ZNMZTEH5T07SPAG3D4.mock-token-v4';
 const IS_MAINNET = process.env.STACKS_NETWORK === 'mainnet';
@@ -718,7 +728,7 @@ bot.command('buy', async (ctx) => {
   const text = ctx.message.text.split(' ');
   if (text.length < 2) return ctx.reply('Usage: /buy <token_contract_address>');
 
-  const tokenAddress = text[1];
+  const tokenAddress = sanitizeAddress(text.slice(1).join(''));
 
   try {
     const res = await pool.query('SELECT id, address, trading_currency FROM users WHERE telegram_id = $1', [userId]);
@@ -864,7 +874,7 @@ bot.command('sell', async (ctx) => {
   const text = ctx.message.text.split(' ');
   if (text.length < 2) return ctx.reply('Usage: /sell <token_contract_address>');
 
-  const tokenAddress = text[1];
+  const tokenAddress = sanitizeAddress(text.slice(1).join(''));
 
   try {
     const res = await pool.query('SELECT id, address, trading_currency FROM users WHERE telegram_id = $1', [userId]);
