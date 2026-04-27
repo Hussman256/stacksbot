@@ -789,14 +789,22 @@ bot.action(/b_(\d+)_(\d+)/, async (ctx) => {
 
     const user = res.rows[0];
     const currency = user.trading_currency || 'STX';
-    const decryptedPrivKey = decryptPrivateKey({
-      encrypted: user.encrypted_private_key,
-      iv: user.iv,
-      authTag: user.auth_tag,
-      salt: user.enc_salt
-    }, userId);
 
-    const swapResult: any = await executeBestSwap(decryptedPrivKey, tokenAddress, amountInStx, 1.0, 'buy', currency);
+    let decryptedPrivKey: string;
+    try {
+      decryptedPrivKey = decryptPrivateKey({
+        encrypted: user.encrypted_private_key,
+        iv: user.iv,
+        authTag: user.auth_tag,
+        salt: user.enc_salt
+      }, userId);
+    } catch (decErr: any) {
+      console.error('Decryption failed — userId:', userId, 'enc_salt:', user.enc_salt, 'err:', decErr.message);
+      if (ctx.chat?.id) await ctx.telegram.deleteMessage(ctx.chat.id, loadMsg.message_id).catch(() => {});
+      return ctx.reply('❌ Wallet decryption failed. Run /resetwallet then /start to create a fresh wallet.');
+    }
+
+    const swapResult: any = await executeBestSwap(decryptedPrivKey!, tokenAddress, amountInStx, 1.0, 'buy', currency);
 
     if (ctx.chat?.id) await ctx.telegram.deleteMessage(ctx.chat.id, loadMsg.message_id).catch(() => {});
 

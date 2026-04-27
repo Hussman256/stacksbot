@@ -36,7 +36,9 @@ export async function createWallet() {
   });
 
   const account = wallet.accounts[0];
-  const privKey = account.stxPrivateKey;
+  // stxPrivateKey is 66-char hex (32 bytes + 01 compression byte) — strip the suffix
+  const rawKey = account.stxPrivateKey;
+  const privKey = rawKey.length === 66 && rawKey.endsWith('01') ? rawKey.slice(0, 64) : rawKey;
   const address = getAddressFromPrivateKey(privKey, transactionVersion);
 
   return { mnemonic: secretKey, address, privateKey: privKey };
