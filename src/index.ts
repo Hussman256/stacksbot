@@ -991,6 +991,32 @@ bot.action(/s_(\d+)_(\d+)/, async (ctx) => {
   }
 });
 
+// ─── Fix wallet encryption (re-encrypt from stored mnemonic) ─────────────────
+bot.command('fixwallet', async (ctx) => {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+  try {
+    const res = await pool.query('SELECT mnemonic FROM users WHERE telegram_id = $1', [userId]);
+    if (!res.rowCount) return ctx.reply('No wallet found. Use /start first.');
+
+    const { mnemonic } = res.rows[0];
+    const { generateWallet } = await import('@stacks/wallet-sdk');
+    const wallet = await generateWallet({ secretKey: mnemonic, password: 'stackbot_internal' });
+    const account = wallet.accounts[0];
+    const rawKey = account.stxPrivateKey;
+    const privKey = rawKey.length === 66 && rawKey.endsWith('01') ? rawKey.slice(0, 64) : rawKey;
+
+    const { encrypted, iv, authTag, salt } = encryptPrivateKey(privKey, userId);
+    await pool.query(
+      'UPDATE users SET encrypted_private_key=$1, iv=$2, auth_tag=$3, enc_salt=$4 WHERE telegram_id=$5',
+      [encrypted, iv, authTag, salt, userId]
+    );
+    await ctx.reply('✅ Wallet re-encrypted successfully. Your address and funds are unchanged.\n\nTry buying a token now.');
+  } catch (e: any) {
+    ctx.reply(`❌ Fix failed: ${e?.message}`);
+  }
+});
+
 // ─── Reset wallet ─────────────────────────────────────────────────────────────
 bot.command('resetwallet', async (ctx) => {
   const userId = ctx.from?.id;
