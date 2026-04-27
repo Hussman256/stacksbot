@@ -1086,6 +1086,7 @@ const server = http.createServer((req, res) => {
 });
 server.listen(PORT, () => {
   console.log(`HTTP server listening on port ${PORT}`);
+  console.log(`Network: ${IS_MAINNET ? 'MAINNET' : 'TESTNET'} (STACKS_NETWORK="${process.env.STACKS_NETWORK}")`);
 });
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
