@@ -820,7 +820,13 @@ bot.action(/b_(\d+)_(\d+)/, async (ctx) => {
     }
   } catch (e: any) {
     if (ctx.chat?.id) await ctx.telegram.deleteMessage(ctx.chat.id, loadMsg.message_id).catch(() => {});
-    await ctx.reply(`❌ Transaction error: ${e?.message ?? String(e)}`);
+    const msg = e?.message ?? String(e);
+    const isDecryptError = msg.includes('unable to authenticate') || msg.includes('Unsupported state');
+    await ctx.reply(
+      isDecryptError
+        ? '❌ Wallet decryption failed. Your ENCRYPTION_SECRET may have changed.\n\nRun /resetwallet then /start to create a fresh wallet.'
+        : `❌ Transaction error: ${msg}`
+    );
   }
 });
 
@@ -967,7 +973,27 @@ bot.action(/s_(\d+)_(\d+)/, async (ctx) => {
     }
   } catch (e: any) {
     if (ctx.chat?.id) await ctx.telegram.deleteMessage(ctx.chat.id, loadMsg.message_id).catch(() => {});
-    await ctx.reply(`❌ Transaction error: ${e?.message ?? String(e)}`);
+    const msg = e?.message ?? String(e);
+    const isDecryptError = msg.includes('unable to authenticate') || msg.includes('Unsupported state');
+    await ctx.reply(
+      isDecryptError
+        ? '❌ Wallet decryption failed. Your ENCRYPTION_SECRET may have changed.\n\nRun /resetwallet then /start to create a fresh wallet.'
+        : `❌ Transaction error: ${msg}`
+    );
+  }
+});
+
+// ─── Reset wallet ─────────────────────────────────────────────────────────────
+bot.command('resetwallet', async (ctx) => {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+  try {
+    await pool.query('DELETE FROM users WHERE telegram_id = $1', [userId]);
+    await ctx.reply(
+      '🗑️ Your wallet has been deleted.\n\nRun /start to generate a fresh wallet.\n\n⚠️ Make sure you saved your previous mnemonic if you had funds — they are NOT recoverable without it.'
+    );
+  } catch (e: any) {
+    ctx.reply(`❌ Reset failed: ${e?.message}`);
   }
 });
 
