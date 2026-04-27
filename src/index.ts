@@ -1124,5 +1124,13 @@ server.listen(PORT, () => {
   console.log(`Network: ${IS_MAINNET ? 'MAINNET' : 'TESTNET'} (STACKS_NETWORK="${process.env.STACKS_NETWORK}")`);
 });
 
+// Self-ping every 4 minutes to prevent Render free tier from spinning down
+const RENDER_URL = process.env.RENDER_EXTERNAL_URL;
+if (RENDER_URL) {
+  setInterval(() => {
+    fetch(`${RENDER_URL}/health`).catch(() => {});
+  }, 4 * 60 * 1000);
+}
+
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
