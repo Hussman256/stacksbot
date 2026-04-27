@@ -1027,7 +1027,15 @@ bot.command('resetwallet', async (ctx) => {
   const userId = ctx.from?.id;
   if (!userId) return;
   try {
-    await pool.query('DELETE FROM users WHERE telegram_id = $1', [userId]);
+    const userRes = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [userId]);
+    if (!userRes.rowCount) return ctx.reply('No wallet found.');
+    const dbId = userRes.rows[0].id;
+    // Delete child rows first to satisfy foreign key constraints
+    await pool.query('DELETE FROM limit_orders  WHERE user_id = $1', [dbId]);
+    await pool.query('DELETE FROM transactions   WHERE user_id = $1', [dbId]);
+    await pool.query('DELETE FROM copy_wallets   WHERE user_id = $1', [dbId]);
+    await pool.query('DELETE FROM withdraw_state WHERE telegram_id = $1', [userId]);
+    await pool.query('DELETE FROM users          WHERE id = $1', [dbId]);
     await ctx.reply(
       '🗑️ Your wallet has been deleted.\n\nRun /start to generate a fresh wallet.\n\n⚠️ Make sure you saved your previous mnemonic if you had funds — they are NOT recoverable without it.'
     );
