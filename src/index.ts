@@ -1013,8 +1013,7 @@ bot.command('fixwallet', async (ctx) => {
     const { generateWallet } = await import('@stacks/wallet-sdk');
     const wallet = await generateWallet({ secretKey: mnemonic, password: 'stackbot_internal' });
     const account = wallet.accounts[0];
-    const rawKey = account.stxPrivateKey;
-    const privKey = rawKey.length === 66 && rawKey.endsWith('01') ? rawKey.slice(0, 64) : rawKey;
+    const privKey = account.stxPrivateKey; // full 66-char key with compression byte
 
     const { encrypted, iv, authTag, salt } = encryptPrivateKey(privKey, userId);
     await pool.query(
