@@ -41,16 +41,6 @@ function checkRateLimit(userId: number, action: 'swap' | 'withdraw'): boolean {
   return true;
 }
 
-// ─── Address sanitizer ───────────────────────────────────────────────────────
-// Strips <> brackets, then extracts the first valid Stacks contract address
-// (handles Telegram auto-linking which can duplicate address+URL in paste)
-function sanitizeAddress(raw: string): string {
-  const cleaned = raw.replace(/[<>]/g, '').trim();
-  // A Stacks contract address: SP/ST + 38 base58 chars, then dot + contract name
-  const match = cleaned.match(/S[PT][A-Z0-9]{37,39}\.[a-zA-Z0-9_-]+/);
-  return match ? match[0] : cleaned;
-}
-
 // ─── Known tokens (mainnet addresses; testnet falls back to mock) ─────────────
 const MOCK = 'ST3EJF744V1TGZR3Q8H1K6ZNMZTEH5T07SPAG3D4.mock-token-v4';
 const IS_MAINNET = process.env.STACKS_NETWORK === 'mainnet';
@@ -728,7 +718,7 @@ bot.command('buy', async (ctx) => {
   const text = ctx.message.text.split(' ');
   if (text.length < 2) return ctx.reply('Usage: /buy <token_contract_address>');
 
-  const tokenAddress = sanitizeAddress(text.slice(1).join(''));
+  const tokenAddress = text[1];
 
   try {
     const res = await pool.query('SELECT id, address, trading_currency FROM users WHERE telegram_id = $1', [userId]);
@@ -740,27 +730,32 @@ bot.command('buy', async (ctx) => {
     const loadMsg = await ctx.reply('Fetching live token data... ⏳');
     const [{ stx: stxBalance }, quote] = await Promise.all([
       getBalance(userAddress, true),
-      findBestPrice(currency, tokenAddress, 10, 'buy')
+      findBestPrice(currency, tokenAddress, 1, 'buy')  // quote for 1 STX → clean per-unit price
     ]);
 
-    const detailsMsg = `🟢 *Buy Token*
+    // quote.quote.price = tokens per 1 STX (amountOut/amountIn)
+    const tokensPerStx   = quote.quote?.price ?? 0;
+    const stxPerToken    = tokensPerStx > 0 ? (1 / tokensPerStx) : 0;
+    const shortToken     = tokenAddress.split('.').pop() ?? tokenAddress;
 
-Token: \`${tokenAddress}\`
-Current Price: ${quote.quote?.price || 'N/A'} ${currency}
-Est. Price Impact: ${quote.quote?.priceImpact || 'N/A'}%
-Source: ${quote.dex.toUpperCase()}
+    const fmt = (n: number, decimals = 6) => n.toLocaleString('en-US', { maximumFractionDigits: decimals });
 
-Wallet Balance: ${stxBalance} STX`;
+    const detailsMsg = `🟢 *Buy ${shortToken}*
+
+💰 1 ${currency} ≈ ${fmt(tokensPerStx, 2)} ${shortToken}
+💵 1 ${shortToken} ≈ ${fmt(stxPerToken, 8)} ${currency}
+📊 Source: ${quote.dex.toUpperCase()}
+💳 Balance: ${stxBalance} ${currency}`;
 
     const tId = await getTokenId(tokenAddress);
 
     const keyboard = Markup.inlineKeyboard([
       [
-        Markup.button.callback(`Buy 10 ${currency}`, `b_${tId}_10`),
-        Markup.button.callback(`Buy 50 ${currency}`, `b_${tId}_50`)
+        Markup.button.callback(`Buy 10 ${currency} (≈${fmt(tokensPerStx * 10, 0)})`, `b_${tId}_10`),
+        Markup.button.callback(`Buy 50 ${currency} (≈${fmt(tokensPerStx * 50, 0)})`, `b_${tId}_50`)
       ],
       [
-        Markup.button.callback(`Buy 100 ${currency}`, `b_${tId}_100`),
+        Markup.button.callback(`Buy 100 ${currency} (≈${fmt(tokensPerStx * 100, 0)})`, `b_${tId}_100`),
         Markup.button.callback('Buy Custom Amount', `b_${tId}_custom`)
       ],
       [Markup.button.callback('🔙 Cancel', 'menu_main')]
@@ -874,7 +869,7 @@ bot.command('sell', async (ctx) => {
   const text = ctx.message.text.split(' ');
   if (text.length < 2) return ctx.reply('Usage: /sell <token_contract_address>');
 
-  const tokenAddress = sanitizeAddress(text.slice(1).join(''));
+  const tokenAddress = text[1];
 
   try {
     const res = await pool.query('SELECT id, address, trading_currency FROM users WHERE telegram_id = $1', [userId]);
@@ -1013,7 +1008,8 @@ bot.command('fixwallet', async (ctx) => {
     const { generateWallet } = await import('@stacks/wallet-sdk');
     const wallet = await generateWallet({ secretKey: mnemonic, password: 'stackbot_internal' });
     const account = wallet.accounts[0];
-    const privKey = account.stxPrivateKey; // full 66-char key with compression byte
+    const rawKey = account.stxPrivateKey;
+    const privKey = rawKey.length === 66 && rawKey.endsWith('01') ? rawKey.slice(0, 64) : rawKey;
 
     const { encrypted, iv, authTag, salt } = encryptPrivateKey(privKey, userId);
     await pool.query(
