@@ -33,16 +33,17 @@ export function startLimitOrderMonitor(bot: Telegraf) {
           
           // Get user details to decrypt wallet
           const userRes = await pool.query(
-             'SELECT telegram_id, encrypted_private_key, iv, auth_tag FROM users WHERE id = $1',
+             'SELECT telegram_id, encrypted_private_key, iv, auth_tag, enc_salt FROM users WHERE id = $1',
              [order.user_id]
           );
-          
+
           if (userRes && userRes.rowCount && userRes.rowCount > 0) {
               const user = userRes.rows[0];
               const decryptedPrivKey = decryptPrivateKey({
                   encrypted: user.encrypted_private_key,
                   iv: user.iv,
-                  authTag: user.auth_tag
+                  authTag: user.auth_tag,
+                  salt: user.enc_salt
               }, parseInt(user.telegram_id));
               
               // Execute order

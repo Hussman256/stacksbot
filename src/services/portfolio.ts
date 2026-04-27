@@ -1,32 +1,48 @@
 import { getBalance } from './wallet';
 
-export async function getPortfolio(address: string) {
-  const { stx: stxBalanceStr, tokens } = await getBalance(address);
-  const stxBalance = parseFloat(stxBalanceStr);
-  
-  // Real app: fetch live STX price from Coingecko or similar
-  const stxPriceUsd = 2.50; 
-  let totalUsdValue = stxBalance * stxPriceUsd;
+let cachedStxPrice: number | null = null;
+let cacheTime = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
-  const parsedTokens = tokens.map(t => {
-      // Mock pricing logic for testing SIP-010 balances
-      const mockPriceUsd = 1.25; 
-      const tokenSymbol = t.identifier.split('::')[1] || t.identifier;
-      const balance = parseFloat(t.balance);
-      const valueUsd = balance * mockPriceUsd;
-      
-      totalUsdValue += valueUsd;
-      
-      return { symbol: tokenSymbol.toUpperCase(), balance, valueUsd };
-  });
+async function getStxPriceUsd(): Promise<number> {
+  if (cachedStxPrice !== null && Date.now() - cacheTime < CACHE_TTL_MS) {
+    return cachedStxPrice;
+  }
+  try {
+    const res = await fetch(
+      'https://api.coingecko.com/api/v3/simple/price?ids=blockstack&vs_currencies=usd'
+    );
+    if (res.ok) {
+      const data = await res.json();
+      const price = data?.blockstack?.usd;
+      if (typeof price === 'number' && price > 0) {
+        cachedStxPrice = price;
+        cacheTime = Date.now();
+        return cachedStxPrice;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to fetch STX price from CoinGecko:', e);
+  }
+  return cachedStxPrice ?? 0;
+}
+
+export async function getPortfolio(address: string) {
+  const [{ stx: stxBalanceStr, tokens }, stxPriceUsd] = await Promise.all([
+    getBalance(address),
+    getStxPriceUsd()
+  ]);
+
+  const stxBalance = parseFloat(stxBalanceStr);
+  const stxValueUsd = stxBalance * stxPriceUsd;
+  const totalUsdValue = stxValueUsd;
 
   return {
     totalUsd: totalUsdValue.toFixed(2),
     stxBalance,
     stxPriceUsd,
     tokens: [
-      { symbol: 'STX', balance: stxBalance, valueUsd: stxBalance * stxPriceUsd },
-      ...parsedTokens
+      { symbol: 'STX', balance: stxBalance, valueUsd: stxValueUsd }
     ]
   };
 }

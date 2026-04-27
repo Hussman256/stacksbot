@@ -1,96 +1,101 @@
-import { makeContractCall, broadcastTransaction, AnchorMode, PostConditionMode, uintCV, contractPrincipalCV, standardPrincipalCV } from '@stacks/transactions';
-import { StacksTestnet } from '@stacks/network';
+import {
+  makeContractCall, broadcastTransaction, AnchorMode, PostConditionMode,
+  uintCV, contractPrincipalCV
+} from '@stacks/transactions';
+import { stacksNetwork, explorerChain } from '../network';
 
-const STACKS_NETWORK = new StacksTestnet();
+const TESTNET_SURROGATE = 'ST3EJF744V1TGZR3Q8H1K6ZNMZTEH5T07SPAG3D4';
+const IS_MAINNET = process.env.STACKS_NETWORK === 'mainnet';
 
+// ── Quote ─────────────────────────────────────────────────────────────────────
 export async function getBitflowQuote(tokenIn: string, tokenOut: string, amountIn: number) {
   try {
-    // In production, you would query Bitflow's Router API. 
-    // e.g. https://api.bitflow.finance/v1/swap/quote?tokenIn=...
-    // For this build, we simulate an API call response mapping.
-    
-    // Simulate real network delay getting the quote
-    await new Promise(r => setTimeout(r, 400));
-    
-    // Assume 1 STX = 1.5 of the target token for the quote
-    const price = 1.5; 
-    const amountOut = amountIn * price;
-    
-    return {
-      price: price,
-      route: [tokenIn, tokenOut],
-      amountOut: amountOut,
-      priceImpact: 0.2 // 0.2% slippage
-    };
+    if (IS_MAINNET) {
+      const url = `https://api.bitflow.finance/v1/swap/quote?tokenIn=${encodeURIComponent(tokenIn)}&tokenOut=${encodeURIComponent(tokenOut)}&amount=${Math.floor(amountIn * 1_000_000)}`;
+      const res = await fetch(url, {
+        headers: { 'x-api-key': process.env.BITFLOW_API_KEY || '' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const amountOut = (data.amountOut ?? 0) / 1_000_000;
+        return {
+          price: amountIn > 0 ? amountOut / amountIn : 0,
+          route: data.route ?? [tokenIn, tokenOut],
+          amountOut,
+          priceImpact: data.priceImpact ?? 0
+        };
+      }
+    }
+    // Testnet: simulated response
+    await new Promise(r => setTimeout(r, 300));
+    return { price: 1.5, route: [tokenIn, tokenOut], amountOut: amountIn * 1.5, priceImpact: 0.2 };
   } catch (e) {
-    console.error('Error fetching Bitflow Quote', e);
+    console.error('Error fetching Bitflow quote', e);
     throw e;
   }
 }
 
-export async function executeBitflowSwap(privateKey: string, tokenAddress: string, amountIn: number, slippage: number, type: 'buy' | 'sell' = 'buy', baseCurrency: string = 'STX') {
+// ── Swap ──────────────────────────────────────────────────────────────────────
+export async function executeBitflowSwap(
+  privateKey: string,
+  tokenAddress: string,
+  amountIn: number,
+  _slippage: number,
+  type: 'buy' | 'sell' = 'buy',
+  _baseCurrency: string = 'STX'
+) {
   try {
-    // 1. We construct the payload for a Bitflow router swap
-    // In Stacks, arguments must be cast to Clarity Values (CVs)
-    const testnetSurrogate = 'ST3EJF744V1TGZR3Q8H1K6ZNMZTEH5T07SPAG3D4';
-    let tokenX;
-    
-    try {
-        if (tokenAddress.includes('.')) {
-            const [addr, name] = tokenAddress.split('.');
-            // If the user pastes a Mainnet token on Testnet, surrogate it to prevent VersionByte crash
-            tokenX = contractPrincipalCV(addr.startsWith('SP') ? testnetSurrogate : addr, name);
-        } else {
-            tokenX = standardPrincipalCV(tokenAddress.startsWith('SP') ? testnetSurrogate : tokenAddress);
-        }
-    } catch (e) {
-        tokenX = standardPrincipalCV(testnetSurrogate);
+    // On testnet the mock router only accepts mock-token-v4.
+    // On mainnet use the actual token address the user specified.
+    let tokenX: ReturnType<typeof contractPrincipalCV>;
+    if (IS_MAINNET) {
+      if (!tokenAddress.includes('.')) throw new Error('Invalid token contract address — must be in format address.contract-name');
+      const [addr, name] = tokenAddress.split('.');
+      tokenX = contractPrincipalCV(addr, name);
+    } else {
+      tokenX = contractPrincipalCV(TESTNET_SURROGATE, 'mock-token-v4');
     }
 
-    const stxMockToken = contractPrincipalCV(testnetSurrogate, 'mock-token-v4');
+    const stxToken = contractPrincipalCV(TESTNET_SURROGATE, 'mock-token-v4');
 
-    // If 'sell', the token is the input. If 'buy', STX is the input.
+    // swap-x-for-y: spends x, receives y
+    // buy  → spend STX (stxToken as x), receive target token (tokenX as y)
+    // sell → spend target token (tokenX as x), receive STX (stxToken as y)
     const functionArgs = [
-       uintCV(Math.floor(amountIn * 1000000)), // amount-in (micro-units)
-       type === 'buy' ? tokenX : stxMockToken, // x-token input
-       type === 'buy' ? stxMockToken : tokenX, // y-token output
-       uintCV(0)                               // min-amount-out (handling slippage)
+      uintCV(Math.floor(amountIn * 1_000_000)),
+      type === 'buy' ? stxToken : tokenX,  // x (input / what you spend)
+      type === 'buy' ? tokenX   : stxToken, // y (output / what you receive)
+      uintCV(0)                             // min-amount-out (0 = no slippage guard)
     ];
 
-    // 2. We compile the transaction payload using the SDK
     const txOptions = {
-      contractAddress: testnetSurrogate, // mock Bitflow router (Testnet)
-      contractName: 'mock-bitflow-router-v6',
-      functionName: type === 'buy' ? 'swap-x-for-y' : 'swap-y-for-x',
+      contractAddress: TESTNET_SURROGATE,
+      contractName: IS_MAINNET ? 'bitflow-core' : 'mock-bitflow-router-v6',
+      functionName: 'swap-x-for-y',
       functionArgs,
       senderKey: privateKey,
-      validateWithAbi: false, // In prod you fetch ABI to pre-validate
-      network: STACKS_NETWORK,
+      validateWithAbi: false,
+      network: stacksNetwork,
       anchorMode: AnchorMode.Any,
-      postConditionMode: PostConditionMode.Allow, // Allow contract to transfer user funds
-      fee: 2000 // Add a hardcoded fee to bypass Hiro API estimation 503 errors
+      postConditionMode: PostConditionMode.Allow,
+      fee: 2000
     };
 
-    // 3. We sign it with the user's decrypted AES-256 key
     const transaction = await makeContractCall(txOptions);
-    
-    // 4. We broadcast it to the nodes (Hiro API)
-    const broadcastResponse = await broadcastTransaction(transaction, STACKS_NETWORK);
+    const broadcastResponse = await broadcastTransaction(transaction, stacksNetwork);
 
     if (broadcastResponse.error) {
-       console.error('Broadcast failed:', broadcastResponse.reason);
-       return { txid: null, status: 'failed', error: broadcastResponse.reason };
+      console.error('Bitflow broadcast rejected:', broadcastResponse.reason, broadcastResponse.reason_data);
+      return { txid: null, status: 'failed', error: broadcastResponse.reason ?? 'Transaction rejected by network' };
     }
-    
-    // In Stacks, the txid tells us where it is sitting in the mempool
-    return { 
-        txid: broadcastResponse.txid, 
-        status: 'pending',
-        explorerUrl: `https://explorer.hiro.so/txid/${broadcastResponse.txid}?chain=testnet`
-    };
 
-  } catch (e) {
-    console.error('Error broadcasting swap', e);
-    return { txid: null, status: 'error', error: String(e) };
+    return {
+      txid: broadcastResponse.txid,
+      status: 'pending',
+      explorerUrl: `https://explorer.hiro.so/txid/${broadcastResponse.txid}?chain=${explorerChain}`
+    };
+  } catch (e: any) {
+    console.error('Bitflow swap error:', e);
+    return { txid: null, status: 'error', error: e?.message ?? String(e) };
   }
 }

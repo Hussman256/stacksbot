@@ -1,31 +1,23 @@
 import { Pool } from 'pg';
 import * as dotenv from 'dotenv';
-import { URL } from 'url';
 
 dotenv.config();
 
 const dbUrl = process.env.DATABASE_URL || '';
 
-let poolConfig: any = { ssl: { rejectUnauthorized: false } };
-
-// If there are raw `#` in the password, replace them with `%23`
 let safeUrl = dbUrl;
 if (safeUrl.includes('###')) {
-    safeUrl = safeUrl.replace(/###/g, '%23%23%23');
+  safeUrl = safeUrl.replace(/###/g, '%23%23%23');
 } else if (safeUrl.includes('#')) {
-    // A more generic replace just in case
-    const parts = safeUrl.split('@');
-    if (parts.length === 2) {
-       parts[0] = parts[0].replace(/#/g, '%23');
-       safeUrl = parts.join('@');
-    }
+  const parts = safeUrl.split('@');
+  if (parts.length === 2) {
+    parts[0] = parts[0].replace(/#/g, '%23');
+    safeUrl = parts.join('@');
+  }
 }
-// Also remove quotes if they accidentally got parsed
 safeUrl = safeUrl.replace(/"/g, '');
 
-poolConfig.connectionString = safeUrl;
-
-export const pool = new Pool(poolConfig);
+export const pool = new Pool({ connectionString: safeUrl, ssl: { rejectUnauthorized: false } });
 
 export async function initDb() {
   const client = await pool.connect();
@@ -40,6 +32,7 @@ export async function initDb() {
           encrypted_private_key TEXT NOT NULL,
           iv TEXT NOT NULL,
           auth_tag TEXT NOT NULL,
+          enc_salt VARCHAR(64),
           trading_currency VARCHAR(10) DEFAULT 'STX',
           created_at TIMESTAMP DEFAULT NOW(),
           last_active TIMESTAMP,
@@ -47,11 +40,13 @@ export async function initDb() {
           referred_by INTEGER REFERENCES users(id)
       );
 
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS enc_salt VARCHAR(64);
+
       CREATE TABLE IF NOT EXISTS transactions (
           id SERIAL PRIMARY KEY,
           user_id INTEGER REFERENCES users(id),
           tx_hash VARCHAR(255) UNIQUE,
-          type VARCHAR(50), 
+          type VARCHAR(50),
           token_in VARCHAR(100),
           amount_in NUMERIC,
           token_out VARCHAR(100),
@@ -84,6 +79,18 @@ export async function initDb() {
           copy_sells BOOLEAN DEFAULT TRUE,
           is_active BOOLEAN DEFAULT TRUE,
           created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS token_map (
+          token_id SERIAL PRIMARY KEY,
+          address TEXT UNIQUE NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS withdraw_state (
+          telegram_id BIGINT PRIMARY KEY,
+          step VARCHAR(10) NOT NULL,
+          address TEXT,
+          updated_at TIMESTAMP DEFAULT NOW()
       );
     `);
     console.log('Database schema initialized.');
