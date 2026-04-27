@@ -760,7 +760,7 @@ Wallet Balance: ${stxBalance} STX`;
     await ctx.reply(detailsMsg, { parse_mode: 'Markdown', reply_markup: keyboard.reply_markup });
   } catch (e) {
     console.error('Error initiating buy', e);
-    ctx.reply('Failed to fetch token data. Does the token exist on Bitflow/ALEX?');
+    ctx.reply('❌ No liquidity pool found for this token. It may not be listed on any supported DEX (Velar, Bitflow).');
   }
 });
 
