@@ -13,4 +13,10 @@ services:
       - key: ENCRYPTION_SECRET
         sync: false
       - key: STACKS_NETWORK
-        value: testnet
+        value: mainnet
+      - key: REDIS_URL
+        sync: false
+      - key: ALEX_API_KEY
+        sync: false
+      - key: BITFLOW_API_KEY
+        sync: false

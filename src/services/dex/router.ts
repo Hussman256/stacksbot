@@ -16,8 +16,9 @@ export async function findBestPrice(tokenIn: string, tokenOut: string, amountIn:
   const alexResult = alex.status    === 'fulfilled' ? alex.value     : null;
   const velarResult = velar.status  === 'fulfilled' ? velar.value    : null;
 
-  if (alex.status   === 'rejected') console.error('ALEX quote failed:', (alex.reason as any)?.message ?? alex.reason);
-  if (velar.status  === 'rejected') console.error('Velar quote failed:', (velar.reason as any)?.message ?? velar.reason);
+  if (bitflow.status === 'rejected') console.error('Bitflow quote failed:', (bitflow.reason as any)?.message ?? bitflow.reason);
+  if (alex.status    === 'rejected') console.error('ALEX quote failed:',    (alex.reason    as any)?.message ?? alex.reason);
+  if (velar.status   === 'rejected') console.error('Velar quote failed:',   (velar.reason   as any)?.message ?? velar.reason);
 
   const all = [
     { dex: 'bitflow', quote: bfResult   },

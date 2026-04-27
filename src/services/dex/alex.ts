@@ -12,9 +12,7 @@ let tickersCacheTime = 0;
 
 async function fetchTickers(): Promise<AlexTicker[]> {
   if (tickersCache && Date.now() - tickersCacheTime < 60_000) return tickersCache;
-  const headers: Record<string, string> = {};
-  if (process.env.ALEX_API_KEY) headers['x-api-key'] = process.env.ALEX_API_KEY;
-  const res = await fetch(`${ALEX_API}/v1/tickers`, { headers });
+  const res = await fetch(`${ALEX_API}/v1/tickers`);
   if (!res.ok) throw new Error(`ALEX tickers API ${res.status}`);
   const data = await res.json();
   tickersCache = Array.isArray(data) ? data : (data.data ?? []);

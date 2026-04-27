@@ -9,6 +9,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@bitflowlabs/core-sdk": "^3.1.0",
     "@stacks/network": "^6.13.0",
     "@stacks/transactions": "^6.16.0",
     "@stacks/wallet-sdk": "^6.15.0",
@@ -17,7 +18,8 @@
     "pg": "^8.11.5",
     "qrcode": "^1.5.4",
     "redis": "^4.6.14",
-    "telegraf": "^4.16.3"
+    "telegraf": "^4.16.3",
+    "tslib": "^2.8.1"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",

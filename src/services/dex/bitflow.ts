@@ -6,33 +6,63 @@ import { stacksNetwork, explorerChain } from '../network';
 
 const TESTNET_SURROGATE = 'ST3EJF744V1TGZR3Q8H1K6ZNMZTEH5T07SPAG3D4';
 const IS_MAINNET = process.env.STACKS_NETWORK === 'mainnet';
+const BITFLOW_API = 'https://bitflow-sdk-api-gateway-7owjsmt8.uc.gateway.dev';
+
+interface BitflowToken {
+  tokenContract: string;
+  priceData: { last_price: number };
+}
+
+let tokensCache: BitflowToken[] | null = null;
+let tokensCacheTime = 0;
+
+async function fetchBitflowTokens(): Promise<BitflowToken[]> {
+  if (tokensCache && Date.now() - tokensCacheTime < 60_000) return tokensCache;
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), 15000);
+  try {
+    const res = await fetch(`${BITFLOW_API}/getAllTokensAndPools`, { signal: ctrl.signal });
+    if (!res.ok) throw new Error(`Bitflow tokens API ${res.status}`);
+    const data = await res.json();
+    tokensCache = (data.tokens ?? []) as BitflowToken[];
+    tokensCacheTime = Date.now();
+    return tokensCache;
+  } finally {
+    clearTimeout(id);
+  }
+}
 
 // ── Quote ─────────────────────────────────────────────────────────────────────
 export async function getBitflowQuote(tokenIn: string, tokenOut: string, amountIn: number) {
-  try {
-    if (IS_MAINNET) {
-      const url = `https://api.bitflow.finance/v1/swap/quote?tokenIn=${encodeURIComponent(tokenIn)}&tokenOut=${encodeURIComponent(tokenOut)}&amount=${Math.floor(amountIn * 1_000_000)}`;
-      const res = await fetch(url, {
-        headers: { 'x-api-key': process.env.BITFLOW_API_KEY || '' }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const amountOut = (data.amountOut ?? 0) / 1_000_000;
-        return {
-          price: amountIn > 0 ? amountOut / amountIn : 0,
-          route: data.route ?? [tokenIn, tokenOut],
-          amountOut,
-          priceImpact: data.priceImpact ?? 0
-        };
-      }
-    }
-    // Testnet: simulated response
-    await new Promise(r => setTimeout(r, 300));
+  if (!IS_MAINNET) {
+    // Testnet: simulated response (no real Bitflow pool on testnet)
     return { price: 1.5, route: [tokenIn, tokenOut], amountOut: amountIn * 1.5, priceImpact: 0.2 };
-  } catch (e) {
-    console.error('Error fetching Bitflow quote', e);
-    throw e;
   }
+
+  const tokens = await fetchBitflowTokens();
+  const isBuy = tokenIn.toUpperCase() === 'STX';
+  const realToken = isBuy ? tokenOut : tokenIn;
+
+  const stxEntry  = tokens.find(t => t.tokenContract?.toLowerCase().includes('token-stx') ||
+                                     (t as any)['token-id'] === 'token-stx');
+  const tokenEntry = tokens.find(t => t.tokenContract?.toLowerCase() === realToken.toLowerCase());
+
+  if (!tokenEntry) throw new Error(`No Bitflow listing for ${realToken}`);
+
+  const stxPrice   = stxEntry?.priceData?.last_price ?? 0;
+  const tokenPrice = tokenEntry.priceData?.last_price ?? 0;
+  if (!stxPrice || !tokenPrice) throw new Error(`Bitflow has no price data for ${realToken}`);
+
+  const amountOut = isBuy
+    ? amountIn * (stxPrice / tokenPrice)
+    : amountIn * (tokenPrice / stxPrice);
+
+  return {
+    price: amountIn > 0 ? amountOut / amountIn : 0,
+    route: [tokenIn, tokenOut],
+    amountOut,
+    priceImpact: 0
+  };
 }
 
 // ── Swap ──────────────────────────────────────────────────────────────────────

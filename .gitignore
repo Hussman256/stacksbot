@@ -4,3 +4,4 @@ dist/
 *.log
 bot.log
 check-contracts.js
+.claude/

@@ -53,6 +53,17 @@ const KNOWN_TOKENS: Record<string, string> = {
 // ─── Custom amount state (in-memory; short-lived flow) ────────────────────────
 const customAmountState = new Map<number, { action: 'buy' | 'sell'; tokenId: number }>();
 
+// Cache token balance from sell screen so we don't need to re-fetch when user types a percentage
+const sellBalanceCache = new Map<number, { tokenId: number; balance: number }>();
+
+function userFriendlyError(e: any): string {
+  const msg = (e?.message ?? String(e)) as string;
+  if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|UND_ERR_CONNECT_TIMEOUT|connect timeout/i.test(msg)) {
+    return 'Service temporarily unavailable. Please try again in a moment.';
+  }
+  return msg;
+}
+
 // ─── Token address map (DB-backed, in-memory cache) ──────────────────────────
 const tokenAddressMap = new Map<number, string>(); // token_id -> address
 
@@ -506,7 +517,7 @@ bot.on('text', async (ctx, next) => {
     const loadMsg = await ctx.reply(`Executing swap... ⏳`);
     try {
       const res = await pool.query(
-        'SELECT id, trading_currency, encrypted_private_key, iv, auth_tag, enc_salt FROM users WHERE telegram_id = $1',
+        'SELECT id, address, trading_currency, encrypted_private_key, iv, auth_tag, enc_salt FROM users WHERE telegram_id = $1',
         [userId]
       );
       if (res.rowCount === 0) return;
@@ -521,9 +532,21 @@ bot.on('text', async (ctx, next) => {
 
       let amountToUse = value;
       if (custom.action === 'sell') {
-        const { tokens } = await getBalance(user.address);
-        const held = tokens.find(t => t.contractAddress === tokenAddress);
-        const bal = parseFloat(held?.balance ?? '0');
+        const cached = sellBalanceCache.get(userId);
+        let bal = 0;
+        if (cached && cached.tokenId === custom.tokenId) {
+          bal = cached.balance;
+          sellBalanceCache.delete(userId);
+        } else {
+          try {
+            const { tokens } = await getBalance(user.address);
+            const held = tokens.find(t => t.contractAddress === tokenAddress);
+            bal = parseFloat(held?.balance ?? '0');
+          } catch {
+            if (ctx.chat?.id) await ctx.telegram.deleteMessage(ctx.chat.id, loadMsg.message_id).catch(() => {});
+            return ctx.reply('❌ Could not fetch your balance. Please try again.');
+          }
+        }
         if (bal === 0) {
           if (ctx.chat?.id) await ctx.telegram.deleteMessage(ctx.chat.id, loadMsg.message_id).catch(() => {});
           return ctx.reply('❌ You do not hold any balance of this token.');
@@ -554,7 +577,7 @@ bot.on('text', async (ctx, next) => {
       }
     } catch (e: any) {
       if (ctx.chat?.id) await ctx.telegram.deleteMessage(ctx.chat.id, loadMsg.message_id).catch(() => {});
-      await ctx.reply(`❌ An error occurred: ${e.message}`);
+      await ctx.reply(`❌ An error occurred: ${userFriendlyError(e)}`);
     }
     return;
   }
@@ -897,6 +920,7 @@ Source: ${quote.dex.toUpperCase()}
 Wallet Balance: ${tokenBalance} Tokens`;
 
     const tId = await getTokenId(tokenAddress);
+    sellBalanceCache.set(userId, { tokenId: tId, balance: tokenBalance });
 
     const keyboard = Markup.inlineKeyboard([
       [
@@ -942,10 +966,21 @@ bot.action(/s_(\d+)_(\d+)/, async (ctx) => {
     if (res.rowCount === 0) return;
 
     const user = res.rows[0];
-    const { tokens } = await getBalance(user.address);
     let trueBalance = 0;
-    for (const t of tokens) {
-      if (t.contractAddress === tokenAddress) trueBalance += parseFloat(t.balance);
+    const cachedSell = sellBalanceCache.get(userId);
+    if (cachedSell && cachedSell.tokenId === tId) {
+      trueBalance = cachedSell.balance;
+      sellBalanceCache.delete(userId);
+    } else {
+      try {
+        const { tokens } = await getBalance(user.address);
+        for (const t of tokens) {
+          if (t.contractAddress === tokenAddress) trueBalance += parseFloat(t.balance);
+        }
+      } catch {
+        if (ctx.chat?.id) await ctx.telegram.deleteMessage(ctx.chat.id, loadMsg.message_id).catch(() => {});
+        return ctx.reply('❌ Could not fetch your balance. Please try again.');
+      }
     }
 
     if (trueBalance === 0) {
@@ -991,7 +1026,7 @@ bot.action(/s_(\d+)_(\d+)/, async (ctx) => {
     await ctx.reply(
       isDecryptError
         ? '❌ Wallet decryption failed. Your ENCRYPTION_SECRET may have changed.\n\nRun /resetwallet then /start to create a fresh wallet.'
-        : `❌ Transaction error: ${msg}`
+        : `❌ Transaction error: ${userFriendlyError(e)}`
     );
   }
 });

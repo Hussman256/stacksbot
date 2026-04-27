@@ -4,6 +4,14 @@ import { hiroApiBase, stacksNetwork, transactionVersion } from './network';
 
 const decimalsCache = new Map<string, number>();
 
+function fetchWithTimeout(url: string, ms = 15000): Promise<Response> {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(id));
+}
+
+const balanceCache = new Map<string, { stx: string; tokens: any[]; time: number }>();
+
 async function getTokenDecimals(contractId: string): Promise<number> {
   if (decimalsCache.has(contractId)) return decimalsCache.get(contractId)!;
   try {
@@ -44,12 +52,15 @@ export async function createWallet() {
 
 export async function getBalance(address: string, stxOnly = false): Promise<{ stx: string, tokens: any[] }> {
   try {
-    const res = await fetch(`${hiroApiBase}/extended/v1/address/${address}/balances`);
+    const res = await fetchWithTimeout(`${hiroApiBase}/extended/v1/address/${address}/balances`);
     if (res.ok) {
       const data = await res.json();
       const stxBalance = (parseInt(data.stx.balance) / 1_000_000).toFixed(6);
 
-      if (stxOnly) return { stx: stxBalance, tokens: [] };
+      if (stxOnly) {
+        balanceCache.set(address, { stx: stxBalance, tokens: [], time: Date.now() });
+        return { stx: stxBalance, tokens: [] };
+      }
 
       const tokens: any[] = [];
       if (data.fungible_tokens) {
@@ -66,10 +77,13 @@ export async function getBalance(address: string, stxOnly = false): Promise<{ st
         }));
       }
 
+      balanceCache.set(address, { stx: stxBalance, tokens, time: Date.now() });
       return { stx: stxBalance, tokens };
     }
   } catch (e) {
     console.error('Error fetching balance', e);
+    const cached = balanceCache.get(address);
+    if (cached) return { stx: cached.stx, tokens: cached.tokens };
   }
   return { stx: '0.000000', tokens: [] };
 }
