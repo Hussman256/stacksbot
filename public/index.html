@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StackBot - Trade Stacks Tokens on Telegram</title>
+  <meta name="description" content="StackBot is a Telegram trading bot for the Stacks blockchain. Buy, sell and track Stacks tokens instantly through your Telegram chat." />
+  <meta property="og:title" content="StackBot - Trade Stacks Tokens on Telegram" />
+  <meta property="og:description" content="Buy, sell and track Stacks tokens instantly through Telegram." />
+  <meta property="og:type" content="website" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --orange: #f7931a;
+      --purple: #7b2d8b;
+      --bg: #0d0d0f;
+      --card: #17171b;
+      --border: #2a2a30;
+      --text: #e8e8ec;
+      --muted: #8888a0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    /* ── NAV ── */
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.25rem 2rem;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: rgba(13,13,15,0.92);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+    }
+    .logo {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .logo span { color: var(--orange); }
+    .nav-cta {
+      background: var(--orange);
+      color: #000;
+      font-weight: 600;
+      font-size: 0.875rem;
+      padding: 0.5rem 1.25rem;
+      border-radius: 8px;
+      transition: opacity 0.15s;
+    }
+    .nav-cta:hover { opacity: 0.85; }
+
+    /* ── HERO ── */
+    .hero {
+      text-align: center;
+      padding: 6rem 1.5rem 4rem;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: rgba(247,147,26,0.12);
+      color: var(--orange);
+      border: 1px solid rgba(247,147,26,0.25);
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.3rem 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+    h1 {
+      font-size: clamp(2.2rem, 6vw, 3.5rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 1.25rem;
+    }
+    h1 em {
+      font-style: normal;
+      background: linear-gradient(90deg, var(--orange), #ff6b6b);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero p {
+      font-size: 1.125rem;
+      color: var(--muted);
+      max-width: 520px;
+      margin: 0 auto 2.5rem;
+    }
+    .hero-btns {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--orange);
+      color: #000;
+      font-weight: 700;
+      font-size: 1rem;
+      padding: 0.75rem 1.75rem;
+      border-radius: 10px;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+    .btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--card);
+      color: var(--text);
+      font-weight: 600;
+      font-size: 1rem;
+      padding: 0.75rem 1.75rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      transition: border-color 0.15s;
+    }
+    .btn-secondary:hover { border-color: var(--orange); }
+
+    /* ── STATS ── */
+    .stats {
+      display: flex;
+      justify-content: center;
+      gap: 3rem;
+      padding: 2rem 1.5rem 3.5rem;
+      flex-wrap: wrap;
+    }
+    .stat { text-align: center; }
+    .stat-value {
+      font-size: 1.75rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--orange);
+    }
+    .stat-label { font-size: 0.8rem; color: var(--muted); margin-top: 0.2rem; }
+
+    /* ── FEATURES ── */
+    .section {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem;
+    }
+    .section-label {
+      text-align: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--orange);
+      margin-bottom: 0.75rem;
+    }
+    h2 {
+      text-align: center;
+      font-size: clamp(1.5rem, 4vw, 2.25rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 3rem;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.5rem;
+      transition: border-color 0.2s;
+    }
+    .card:hover { border-color: rgba(247,147,26,0.4); }
+    .card-icon {
+      font-size: 1.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 0.4rem;
+    }
+    .card p { font-size: 0.875rem; color: var(--muted); }
+
+    /* ── HOW IT WORKS ── */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.5rem;
+      text-align: center;
+    }
+    .step-num {
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 50%;
+      background: rgba(247,147,26,0.15);
+      border: 1px solid rgba(247,147,26,0.3);
+      color: var(--orange);
+      font-weight: 800;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1rem;
+    }
+    .step h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .step p { font-size: 0.85rem; color: var(--muted); }
+
+    /* ── DEX BANNER ── */
+    .dex-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      padding: 2rem 1.5rem;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .dex-label { font-size: 0.8rem; color: var(--muted); }
+    .dex-pill {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.4rem 1rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    /* ── CONTRACT ── */
+    .contract-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.5rem 2rem;
+      max-width: 640px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .contract-box h3 { font-weight: 700; margin-bottom: 0.5rem; }
+    .contract-addr {
+      font-family: 'Courier New', monospace;
+      font-size: 0.78rem;
+      color: var(--orange);
+      word-break: break-all;
+      background: rgba(247,147,26,0.06);
+      border: 1px solid rgba(247,147,26,0.15);
+      border-radius: 8px;
+      padding: 0.6rem 1rem;
+      margin-top: 0.75rem;
+    }
+    .contract-box a {
+      display: inline-block;
+      margin-top: 0.75rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-decoration: underline;
+    }
+    .contract-box a:hover { color: var(--orange); }
+
+    /* ── CTA ── */
+    .cta {
+      text-align: center;
+      padding: 5rem 1.5rem;
+    }
+    .cta h2 { margin-bottom: 1rem; }
+    .cta p { color: var(--muted); margin-bottom: 2rem; }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      text-align: center;
+      padding: 1.5rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <div class="logo">Stack<span>Bot</span></div>
+    <a class="nav-cta" href="https://t.me/stackbot" target="_blank">Open in Telegram</a>
+  </nav>
+
+  <section class="hero">
+    <div class="badge">Built on Stacks &bull; Powered by Bitcoin</div>
+    <h1>Trade Stacks Tokens<br />from <em>Telegram</em></h1>
+    <p>StackBot brings DEX trading directly into your Telegram chat. Buy, sell and track Stacks tokens instantly &mdash; no wallet app required.</p>
+    <div class="hero-btns">
+      <a class="btn-primary" href="https://t.me/stackbot" target="_blank">
+        Start Trading
+      </a>
+      <a class="btn-secondary" href="https://explorer.hiro.so/address/SP31646CX6EKJ4ANB1P3RQFGN2WTR6AY79R650MT2.stackbot-registry?chain=mainnet" target="_blank">
+        View Contract
+      </a>
+    </div>
+  </section>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value">3</div>
+      <div class="stat-label">DEX Integrations</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">Real-time</div>
+      <div class="stat-label">Price Quotes</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">Mainnet</div>
+      <div class="stat-label">Stacks Network</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">Non-custodial</div>
+      <div class="stat-label">Your Keys, Your Tokens</div>
+    </div>
+  </div>
+
+  <div class="dex-row">
+    <span class="dex-label">ROUTES THROUGH</span>
+    <span class="dex-pill">ALEX</span>
+    <span class="dex-pill">Velar</span>
+    <span class="dex-pill">Bitflow</span>
+  </div>
+
+  <section class="section">
+    <div class="section-label">Features</div>
+    <h2>Everything you need to trade on Stacks</h2>
+    <div class="grid">
+      <div class="card">
+        <div class="card-icon">&#x26A1;</div>
+        <h3>Instant Buy &amp; Sell</h3>
+        <p>Swap any Stacks token in seconds. Paste a contract address or choose from popular tokens like WELSH, LEO and DIKO.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#x1F4B9;</div>
+        <h3>Best Price Routing</h3>
+        <p>Quotes are fetched from ALEX, Velar and Bitflow simultaneously. Your trade always goes to the best available price.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#x1F4BC;</div>
+        <h3>Portfolio Tracker</h3>
+        <p>See your full Stacks wallet balance &mdash; STX and all SIP-010 tokens &mdash; with live USD valuations.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#x23F0;</div>
+        <h3>Limit Orders</h3>
+        <p>Set a target price and walk away. The bot monitors the market and executes automatically when your price is hit.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#x1F4F1;</div>
+        <h3>Copy Trading</h3>
+        <p>Follow any Stacks wallet address. The bot mirrors every trade they make directly into your wallet.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#x1F512;</div>
+        <h3>Non-Custodial</h3>
+        <p>Your private key is AES-256-GCM encrypted and never leaves your own database. StackBot never holds your funds.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-label">How it works</div>
+    <h2>Up and trading in three steps</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>Open the bot</h3>
+        <p>Start a chat with @stackbot on Telegram. A mainnet Stacks wallet is created for you automatically.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>Deposit STX</h3>
+        <p>Send STX to your bot wallet address. A small amount covers transaction fees on the Stacks network.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>Trade</h3>
+        <p>Use /buy or /sell with any SIP-010 token contract address. Confirm the quote and your swap broadcasts instantly.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-label">On-Chain</div>
+    <h2>Verified on Stacks Mainnet</h2>
+    <div class="contract-box">
+      <h3>StackBot Registry Contract</h3>
+      <p style="font-size:0.85rem;color:var(--muted);margin-top:0.25rem;">User registry and trade counter deployed on Stacks mainnet</p>
+      <div class="contract-addr">SP31646CX6EKJ4ANB1P3RQFGN2WTR6AY79R650MT2.stackbot-registry</div>
+      <a href="https://explorer.hiro.so/address/SP31646CX6EKJ4ANB1P3RQFGN2WTR6AY79R650MT2.stackbot-registry?chain=mainnet" target="_blank">View on Hiro Explorer &rarr;</a>
+    </div>
+  </section>
+
+  <section class="cta">
+    <h2>Ready to trade?</h2>
+    <p>Open Telegram and start your first swap in under a minute.</p>
+    <a class="btn-primary" href="https://t.me/stackbot" target="_blank">Open StackBot</a>
+  </section>
+
+  <footer>
+    &copy; 2026 StackBot &bull; Built on <a href="https://stacks.co" style="color:var(--orange)">Stacks</a> &bull; <a href="https://t.me/stackbot" style="color:var(--orange)">Telegram</a>
+  </footer>
+
+</body>
+</html>

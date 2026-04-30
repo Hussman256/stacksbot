@@ -2,6 +2,8 @@ import { Telegraf, Markup } from 'telegraf';
 import * as QRCode from 'qrcode';
 import * as dotenv from 'dotenv';
 import * as http from 'http';
+import * as fs from 'fs';
+import * as path from 'path';
 import { makeSTXTokenTransfer, broadcastTransaction, AnchorMode } from '@stacks/transactions';
 import { createWallet, getBalance } from './services/wallet';
 import { stacksNetwork, explorerChain } from './services/network';
@@ -1110,13 +1112,15 @@ initDb().then(() => {
 
 // Keep-alive HTTP server for Render
 const PORT = process.env.PORT || 3000;
+const landingHtml = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+
 const server = http.createServer((req, res) => {
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok', uptime: process.uptime() }));
   } else {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('StackBot is running!');
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(landingHtml);
   }
 });
 server.listen(PORT, () => {
