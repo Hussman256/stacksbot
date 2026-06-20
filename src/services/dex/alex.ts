@@ -1,5 +1,11 @@
 const ALEX_API = 'https://api.alexgo.io';
 
+function fetchWithTimeout(url: string, ms = 5000): Promise<Response> {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(id));
+}
+
 interface AlexTicker {
   tickerId: string;
   lastBasePriceInUSD: number;
@@ -11,12 +17,18 @@ let tickersCache: AlexTicker[] | null = null;
 let tickersCacheTime = 0;
 
 async function fetchTickers(): Promise<AlexTicker[]> {
-  if (tickersCache && Date.now() - tickersCacheTime < 60_000) return tickersCache;
-  const res = await fetch(`${ALEX_API}/v1/tickers`);
+  if (tickersCache && Date.now() - tickersCacheTime < 60_000) {
+    console.log(`[DIAG-ALEX:${Date.now()}] fetchTickers: cache hit`);
+    return tickersCache;
+  }
+  console.log(`[DIAG-ALEX:${Date.now()}] fetchTickers: cache miss, fetching...`);
+  const res = await fetchWithTimeout(`${ALEX_API}/v1/tickers`);
+  console.log(`[DIAG-ALEX:${Date.now()}] fetchTickers: fetch returned ok=${res.ok}`);
   if (!res.ok) throw new Error(`ALEX tickers API ${res.status}`);
   const data = await res.json();
   tickersCache = Array.isArray(data) ? data : (data.data ?? []);
   tickersCacheTime = Date.now();
+  console.log(`[DIAG-ALEX:${Date.now()}] fetchTickers: cached ${tickersCache!.length} tickers`);
   return tickersCache!;
 }
 
@@ -30,11 +42,12 @@ async function findStxTicker(realTokenAddress: string): Promise<AlexTicker | nul
 
 // ── Quote ─────────────────────────────────────────────────────────────────────
 export async function getAlexQuote(tokenIn: string, tokenOut: string, amountIn: number) {
-  // Determine which side is the "token" vs STX
   const isBuy  = tokenIn.toUpperCase()  === 'STX';
   const realToken = isBuy ? tokenOut : tokenIn;
+  console.log(`[DIAG-ALEX:${Date.now()}] getAlexQuote entered, realToken=${realToken}`);
 
   const ticker = await findStxTicker(realToken);
+  console.log(`[DIAG-ALEX:${Date.now()}] ticker found=${!!ticker}`);
   if (!ticker) throw new Error(`No ALEX ticker for ${realToken}`);
 
   const stxPriceUsd   = ticker.lastTargetPriceInUSD;

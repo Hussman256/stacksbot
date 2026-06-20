@@ -19,9 +19,20 @@ interface VelarPool {
 let poolsCache: VelarPool[] | null = null;
 let poolsCacheTime = 0;
 
+function fetchWithTimeout(url: string, ms = 5000): Promise<Response> {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(id));
+}
+
 async function fetchPools(): Promise<VelarPool[]> {
-  if (poolsCache && Date.now() - poolsCacheTime < 60_000) return poolsCache;
-  const res = await fetch('https://api.velar.co/pools?limit=100');
+  if (poolsCache && Date.now() - poolsCacheTime < 60_000) {
+    console.log(`[DIAG-VELAR:${Date.now()}] fetchPools: cache hit`);
+    return poolsCache;
+  }
+  console.log(`[DIAG-VELAR:${Date.now()}] fetchPools: cache miss, fetching...`);
+  const res = await fetchWithTimeout('https://api.velar.co/pools?limit=100');
+  console.log(`[DIAG-VELAR:${Date.now()}] fetchPools: fetch returned ok=${res.ok}`);
   if (!res.ok) throw new Error(`Velar pools API ${res.status}`);
   const data = await res.json();
   const raw: any[] = data.data ?? (Array.isArray(data) ? data : []);
@@ -32,6 +43,7 @@ async function fetchPools(): Promise<VelarPool[]> {
     reserve1: Number((p.stats || {}).reserve1 ?? 0),
   })).filter(p => p.token0 && p.token1);
   poolsCacheTime = Date.now();
+  console.log(`[DIAG-VELAR:${Date.now()}] fetchPools: cached ${poolsCache!.length} pools`);
   return poolsCache!;
 }
 
@@ -55,10 +67,12 @@ function ammOut(reserveIn: number, reserveOut: number, amountIn: number): number
 
 // ── Quote ─────────────────────────────────────────────────────────────────────
 export async function getVelarQuote(tokenIn: string, tokenOut: string, amountIn: number) {
+  console.log(`[DIAG-VELAR:${Date.now()}] getVelarQuote entered, tokenIn=${tokenIn} tokenOut=${tokenOut}`);
   const pools  = await fetchPools();
   const inId   = stxToWstx(tokenIn);
   const outId  = stxToWstx(tokenOut);
   const match  = findPool(pools, inId, outId);
+  console.log(`[DIAG-VELAR:${Date.now()}] pool found=${!!match}`);
   if (!match) throw new Error(`No Velar pool for ${tokenIn}/${tokenOut}`);
 
   const { pool, flipped } = match;

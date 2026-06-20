@@ -58,6 +58,18 @@ const customAmountState = new Map<number, { action: 'buy' | 'sell'; tokenId: num
 // Cache token balance from sell screen so we don't need to re-fetch when user types a percentage
 const sellBalanceCache = new Map<number, { tokenId: number; balance: number }>();
 
+function detectNetworkMismatch(address: string): string | null {
+  const onMainnet = process.env.STACKS_NETWORK === 'mainnet';
+  const isMainnetAddr = address.startsWith('SP') || address.startsWith('SM');
+  if (onMainnet && !isMainnetAddr) {
+    return `❌ Your wallet (\`${address.slice(0, 10)}...\`) was created on testnet but the bot is on mainnet. Run /resetwallet then /start to create a fresh wallet.`;
+  }
+  if (!onMainnet && isMainnetAddr) {
+    return `❌ Your wallet (\`${address.slice(0, 10)}...\`) was created on mainnet but the bot is on testnet. Run /resetwallet then /start to create a fresh testnet wallet.`;
+  }
+  return null;
+}
+
 function userFriendlyError(e: any): string {
   const msg = (e?.message ?? String(e)) as string;
   if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|UND_ERR_CONNECT_TIMEOUT|connect timeout/i.test(msg)) {
@@ -325,15 +337,20 @@ Select a popular token below to quick-buy, or paste a contract address using \`/
 
 bot.action(/t_buy_(\d+)/, async (ctx) => {
   const tId = parseInt(ctx.match[1]);
+  console.log(`[DIAG-QBUY:${Date.now()}] action handler entered, tId=${tId}`);
   const tokenAddress = await getTokenAddress(tId);
+  console.log(`[DIAG-QBUY:${Date.now()}] token resolved: ${tokenAddress ?? 'NOT FOUND'}`);
   if (!tokenAddress) return ctx.answerCbQuery('Session expired. Please request a new quote.', { show_alert: true });
 
+  console.log(`[DIAG-QBUY:${Date.now()}] calling bot.handleUpdate`);
   bot.handleUpdate({
     ...ctx.update,
     message: { text: `/buy ${tokenAddress}`, from: ctx.from, chat: ctx.chat }
   } as any);
+  console.log(`[DIAG-QBUY:${Date.now()}] bot.handleUpdate dispatched (not awaited)`);
 
   await ctx.answerCbQuery('Fetching quote...');
+  console.log(`[DIAG-QBUY:${Date.now()}] action handler complete`);
 });
 
 bot.action('t_custom', async (ctx) => {
@@ -524,6 +541,11 @@ bot.on('text', async (ctx, next) => {
       );
       if (res.rowCount === 0) return;
       const user = res.rows[0];
+      const mismatch = detectNetworkMismatch(user.address);
+      if (mismatch) {
+        if (ctx.chat?.id) await ctx.telegram.deleteMessage(ctx.chat.id, loadMsg.message_id).catch(() => {});
+        return ctx.reply(mismatch, { parse_mode: 'Markdown' });
+      }
       const currency = user.trading_currency || 'STX';
       const decryptedPrivKey = decryptPrivateKey({
         encrypted: user.encrypted_private_key,
@@ -619,6 +641,9 @@ bot.on('text', async (ctx, next) => {
       if (res.rowCount === 0) return ctx.reply('Error: wallet not found.');
 
       const user = res.rows[0];
+      const mismatch = detectNetworkMismatch(user.address);
+      if (mismatch) return ctx.reply(mismatch, { parse_mode: 'Markdown' });
+
       const decryptedPrivKey = decryptPrivateKey({
         encrypted: user.encrypted_private_key,
         iv: user.iv,
@@ -738,6 +763,7 @@ bot.command('copy', async (ctx) => {
 // ─── Buy ──────────────────────────────────────────────────────────────────────
 bot.command('buy', async (ctx) => {
   const userId = ctx.from?.id;
+  console.log(`[DIAG-BUY:${Date.now()}] command handler entered, userId=${userId}, text="${ctx.message?.text}"`);
   if (!userId) return;
 
   const text = ctx.message.text.split(' ');
@@ -751,12 +777,15 @@ bot.command('buy', async (ctx) => {
 
     const userAddress = res.rows[0].address;
     const currency = res.rows[0].trading_currency || 'STX';
+    console.log(`[DIAG-BUY:${Date.now()}] DB done, userAddress=${userAddress}, starting fetches`);
 
     const loadMsg = await ctx.reply('Fetching live token data... ⏳');
+    console.log(`[DIAG-BUY:${Date.now()}] loadMsg sent, entering Promise.all`);
     const [{ stx: stxBalance }, quote] = await Promise.all([
       getBalance(userAddress, true),
       findBestPrice(currency, tokenAddress, 1, 'buy')  // quote for 1 STX → clean per-unit price
     ]);
+    console.log(`[DIAG-BUY:${Date.now()}] Promise.all resolved, stxBalance=${stxBalance}, dex=${quote.dex}`);
 
     // quote.quote.price = tokens per 1 STX (amountOut/amountIn)
     const tokensPerStx   = quote.quote?.price ?? 0;
@@ -812,12 +841,18 @@ bot.action(/b_(\d+)_(\d+)/, async (ctx) => {
 
   try {
     const res = await pool.query(
-      'SELECT id, trading_currency, encrypted_private_key, iv, auth_tag, enc_salt FROM users WHERE telegram_id = $1',
+      'SELECT id, address, trading_currency, encrypted_private_key, iv, auth_tag, enc_salt FROM users WHERE telegram_id = $1',
       [userId]
     );
     if (res.rowCount === 0) return;
 
     const user = res.rows[0];
+    const mismatch = detectNetworkMismatch(user.address);
+    if (mismatch) {
+      if (ctx.chat?.id) await ctx.telegram.deleteMessage(ctx.chat.id, loadMsg.message_id).catch(() => {});
+      return ctx.reply(mismatch, { parse_mode: 'Markdown' });
+    }
+
     const currency = user.trading_currency || 'STX';
 
     let decryptedPrivKey: string;
@@ -968,6 +1003,12 @@ bot.action(/s_(\d+)_(\d+)/, async (ctx) => {
     if (res.rowCount === 0) return;
 
     const user = res.rows[0];
+    const mismatch = detectNetworkMismatch(user.address);
+    if (mismatch) {
+      if (ctx.chat?.id) await ctx.telegram.deleteMessage(ctx.chat.id, loadMsg.message_id).catch(() => {});
+      return ctx.reply(mismatch, { parse_mode: 'Markdown' });
+    }
+
     let trueBalance = 0;
     const cachedSell = sellBalanceCache.get(userId);
     if (cachedSell && cachedSell.tokenId === tId) {

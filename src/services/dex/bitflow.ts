@@ -34,12 +34,15 @@ async function fetchBitflowTokens(): Promise<BitflowToken[]> {
 
 // ── Quote ─────────────────────────────────────────────────────────────────────
 export async function getBitflowQuote(tokenIn: string, tokenOut: string, amountIn: number) {
+  console.log(`[DIAG-BITFLOW:${Date.now()}] getBitflowQuote entered, IS_MAINNET=${IS_MAINNET}`);
   if (!IS_MAINNET) {
-    // Testnet: simulated response (no real Bitflow pool on testnet)
+    console.log(`[DIAG-BITFLOW:${Date.now()}] returning simulated testnet response`);
     return { price: 1.5, route: [tokenIn, tokenOut], amountOut: amountIn * 1.5, priceImpact: 0.2 };
   }
 
+  console.log(`[DIAG-BITFLOW:${Date.now()}] fetching mainnet token list...`);
   const tokens = await fetchBitflowTokens();
+  console.log(`[DIAG-BITFLOW:${Date.now()}] token list fetched, count=${tokens.length}`);
   const isBuy = tokenIn.toUpperCase() === 'STX';
   const realToken = isBuy ? tokenOut : tokenIn;
 

@@ -6,11 +6,13 @@ const IS_MAINNET = process.env.STACKS_NETWORK === 'mainnet';
 const REAL_DEXES = new Set(['velar', 'alex']);
 
 export async function findBestPrice(tokenIn: string, tokenOut: string, amountIn: number, _type: 'buy' | 'sell' = 'buy') {
+  console.log(`[DIAG-ROUTER:${Date.now()}] findBestPrice entered, tokenIn=${tokenIn} tokenOut=${tokenOut}`);
   const [bitflow, alex, velar] = await Promise.allSettled([
     getBitflowQuote(tokenIn, tokenOut, amountIn),
     getAlexQuote(tokenIn, tokenOut, amountIn),
     getVelarQuote(tokenIn, tokenOut, amountIn)
   ]);
+  console.log(`[DIAG-ROUTER:${Date.now()}] allSettled done — bitflow=${bitflow.status} alex=${alex.status} velar=${velar.status}`);
 
   const bfResult  = bitflow.status  === 'fulfilled' ? bitflow.value  : null;
   const alexResult = alex.status    === 'fulfilled' ? alex.value     : null;
