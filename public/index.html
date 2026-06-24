@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>StackBot - Trade Stacks Tokens on Telegram</title>
-  <meta name="description" content="StackBot is a Telegram trading bot for the Stacks blockchain. Buy, sell and track Stacks tokens instantly through your Telegram chat." />
-  <meta property="og:title" content="StackBot - Trade Stacks Tokens on Telegram" />
-  <meta property="og:description" content="Buy, sell and track Stacks tokens instantly through Telegram." />
+  <title>StackBot - Stacks Trading Bot for Telegram</title>
+  <meta name="description" content="StackBot is a Telegram trading bot for the Stacks blockchain. Live risk scoring from mainnet data, real-time DEX quotes, and non-custodial wallet — directly in your Telegram chat." />
+  <meta property="og:title" content="StackBot - Stacks Trading Bot for Telegram" />
+  <meta property="og:description" content="Live risk scoring, real-time DEX quotes, and non-custodial trading on Stacks — directly in Telegram." />
   <meta property="og:type" content="website" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -187,8 +187,10 @@
     }
     .card:hover { border-color: rgba(247,147,26,0.4); }
     .card-icon {
-      font-size: 1.75rem;
-      margin-bottom: 0.75rem;
+      width: 2rem;
+      height: 2rem;
+      color: var(--orange);
+      margin-bottom: 0.875rem;
     }
     .card h3 {
       font-size: 1rem;
@@ -241,6 +243,37 @@
       font-size: 0.8rem;
       font-weight: 600;
     }
+
+    /* ── ROADMAP ── */
+    .roadmap-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
+    }
+    .roadmap-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.5rem;
+      opacity: 0.7;
+      position: relative;
+    }
+    .roadmap-badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: rgba(136,136,160,0.15);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.2rem 0.6rem;
+      margin-bottom: 0.75rem;
+    }
+    .roadmap-card .card-icon { color: var(--muted); }
+    .roadmap-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .roadmap-card p { font-size: 0.875rem; color: var(--muted); }
 
     /* ── CONTRACT ── */
     .contract-box {
@@ -299,9 +332,9 @@
   </nav>
 
   <section class="hero">
-    <div class="badge">Built on Stacks &bull; Powered by Bitcoin</div>
+    <div class="badge">Testnet &bull; Live risk data from mainnet</div>
     <h1>Trade Stacks Tokens<br />from <em>Telegram</em></h1>
-    <p>StackBot brings DEX trading directly into your Telegram chat. Buy, sell and track Stacks tokens instantly &mdash; with live risk scoring on every token before you commit.</p>
+    <p>StackBot is a Telegram trading bot for the Stacks blockchain. Swap tokens directly from your chat, with live risk scores backed by real mainnet data &mdash; currently running on testnet ahead of mainnet launch.</p>
     <div class="hero-btns">
       <a class="btn-primary" href="https://t.me/stackbot_test_bot" target="_blank">
         Start Trading
@@ -319,11 +352,11 @@
     </div>
     <div class="stat">
       <div class="stat-value">Real-time</div>
-      <div class="stat-label">Price Quotes</div>
+      <div class="stat-label">Mainnet Risk Data</div>
     </div>
     <div class="stat">
-      <div class="stat-value">Mainnet</div>
-      <div class="stat-label">Stacks Network</div>
+      <div class="stat-value">Testnet</div>
+      <div class="stat-label">Execution Network</div>
     </div>
     <div class="stat">
       <div class="stat-value">Non-custodial</div>
@@ -340,43 +373,75 @@
 
   <section class="section">
     <div class="section-label">Features</div>
-    <h2>Everything you need to trade on Stacks</h2>
+    <h2>What StackBot does today</h2>
     <div class="grid">
+
       <div class="card" style="border-color: rgba(247,147,26,0.35);">
-        <div class="card-icon">&#x1F6E1;&#xFE0F;</div>
+        <svg class="card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <polyline points="9 12 11 14 15 10"/>
+        </svg>
         <h3>Live Risk Scoring</h3>
         <p>Every token shows a transparent risk score before you buy &mdash; liquidity depth, token age, DEX coverage and trading volume, pulled live from mainnet. Low, Medium or High, with every input shown so you can see exactly why.</p>
       </div>
+
       <div class="card">
-        <div class="card-icon">&#x26A1;</div>
+        <svg class="card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        </svg>
         <h3>Instant Buy &amp; Sell</h3>
-        <p>Swap any Stacks token in seconds. Paste a contract address or choose from popular tokens like WELSH, LEO and DIKO.</p>
+        <p>Swap any SIP-010 token from Telegram. Paste a contract address or choose from popular tokens. Execution currently runs on testnet ahead of a mainnet security audit.</p>
       </div>
+
       <div class="card">
-        <div class="card-icon">&#x1F4B9;</div>
+        <svg class="card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="16 3 21 3 21 8"/>
+          <line x1="4" y1="20" x2="21" y2="3"/>
+          <polyline points="21 16 21 21 16 21"/>
+          <line x1="15" y1="15" x2="21" y2="21"/>
+          <line x1="4" y1="4" x2="9" y2="9"/>
+        </svg>
         <h3>Best Price Routing</h3>
         <p>Quotes are fetched from ALEX, Velar and Bitflow simultaneously. Your trade always goes to the best available price.</p>
       </div>
+
       <div class="card">
-        <div class="card-icon">&#x1F4BC;</div>
+        <svg class="card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="20" x2="18" y2="10"/>
+          <line x1="12" y1="20" x2="12" y2="4"/>
+          <line x1="6" y1="20" x2="6" y2="14"/>
+        </svg>
         <h3>Portfolio Tracker</h3>
-        <p>See your full Stacks wallet balance &mdash; STX and all SIP-010 tokens &mdash; with live USD valuations.</p>
+        <p>View your STX and SIP-010 token balances with live USD valuation. Tracks your full wallet without leaving Telegram.</p>
       </div>
+
       <div class="card">
-        <div class="card-icon">&#x23F0;</div>
+        <svg class="card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        <h3>Non-Custodial</h3>
+        <p>Your private key is AES-256-GCM encrypted and never leaves your database. StackBot never holds your funds.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="section" style="padding-top: 0;">
+    <div class="section-label">Roadmap</div>
+    <h2>Coming to mainnet</h2>
+    <div class="roadmap-grid">
+
+      <div class="roadmap-card">
+        <div class="roadmap-badge">Planned</div>
+        <svg class="card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
         <h3>Limit Orders</h3>
         <p>Set a target price and walk away. The bot monitors the market and executes automatically when your price is hit.</p>
       </div>
-      <div class="card">
-        <div class="card-icon">&#x1F4F1;</div>
-        <h3>Copy Trading</h3>
-        <p>Follow any Stacks wallet address. The bot mirrors every trade they make directly into your wallet.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">&#x1F512;</div>
-        <h3>Non-Custodial</h3>
-        <p>Your private key is AES-256-GCM encrypted and never leaves your own database. StackBot never holds your funds.</p>
-      </div>
+
     </div>
   </section>
 
@@ -387,27 +452,27 @@
       <div class="step">
         <div class="step-num">1</div>
         <h3>Open the bot</h3>
-        <p>Start a chat with @stackbot_test_bot on Telegram. A mainnet Stacks wallet is created for you automatically.</p>
+        <p>Start a chat with @stackbot_test_bot on Telegram. A Stacks wallet is created for you automatically.</p>
       </div>
       <div class="step">
         <div class="step-num">2</div>
         <h3>Deposit STX</h3>
-        <p>Send STX to your bot wallet address. A small amount covers transaction fees on the Stacks network.</p>
+        <p>Send testnet STX to your bot wallet address. Use the Stacks testnet faucet to get funds.</p>
       </div>
       <div class="step">
         <div class="step-num">3</div>
         <h3>Trade</h3>
-        <p>Use /buy or /sell with any SIP-010 token contract address. Confirm the quote and your swap broadcasts instantly.</p>
+        <p>Use /buy or /sell with any SIP-010 contract address. Review the live risk score, confirm the quote, and your swap broadcasts on the Stacks testnet.</p>
       </div>
     </div>
   </section>
 
   <section class="section">
     <div class="section-label">On-Chain</div>
-    <h2>Verified on Stacks Mainnet</h2>
+    <h2>On-Chain Presence</h2>
     <div class="contract-box">
       <h3>StackBot Registry Contract</h3>
-      <p style="font-size:0.85rem;color:var(--muted);margin-top:0.25rem;">User registry and trade counter deployed on Stacks mainnet</p>
+      <p style="font-size:0.85rem;color:var(--muted);margin-top:0.25rem;">User registry deployed on Stacks mainnet. Risk scores are computed from live mainnet data &mdash; liquidity, token age and trading volume pulled directly from ALEX, Velar and the Hiro API. Swap execution runs on testnet and will move to mainnet after a security review.</p>
       <div class="contract-addr">SP31646CX6EKJ4ANB1P3RQFGN2WTR6AY79R650MT2.stackbot-registry</div>
       <a href="https://explorer.hiro.so/address/SP31646CX6EKJ4ANB1P3RQFGN2WTR6AY79R650MT2.stackbot-registry?chain=mainnet" target="_blank">View on Hiro Explorer &rarr;</a>
     </div>
@@ -415,7 +480,7 @@
 
   <section class="cta">
     <h2>Ready to trade?</h2>
-    <p>Open Telegram and start your first swap in under a minute.</p>
+    <p>Open Telegram and run your first swap in under a minute.</p>
     <a class="btn-primary" href="https://t.me/stackbot_test_bot" target="_blank">Open StackBot</a>
   </section>
 
