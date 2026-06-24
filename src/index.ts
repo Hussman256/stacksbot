@@ -13,6 +13,8 @@ import { getPortfolio } from './services/portfolio';
 import { startLimitOrderMonitor } from './services/jobs/limitOrders';
 import { startCopyTradeMonitor } from './services/jobs/copyTrading';
 import { findBestPrice, executeBestSwap } from './services/dex/router';
+import { fetchTokenSignals } from './services/risk/dataFetcher';
+import { scoreToken, formatRiskInline } from './services/risk/scorer';
 
 dotenv.config();
 
@@ -46,6 +48,16 @@ function checkRateLimit(userId: number, action: 'swap' | 'withdraw'): boolean {
 // ─── Known tokens (mainnet addresses; testnet falls back to mock) ─────────────
 const MOCK = 'ST3EJF744V1TGZR3Q8H1K6ZNMZTEH5T07SPAG3D4.mock-token-v4';
 const IS_MAINNET = process.env.STACKS_NETWORK === 'mainnet';
+
+// Specific deployed mock contracts — risk scoring is meaningless for these
+const MOCK_CONTRACTS = new Set([
+  'ST3EJF744V1TGZR3Q8H1K6ZNMZTEH5T07SPAG3D4.mock-token-v4',
+  'ST3EJF744V1TGZR3Q8H1K6ZNMZTEH5T07SPAG3D4.mock-bitflow-router-v7',
+]);
+
+function withRiskTimeout<T>(p: Promise<T>, ms = 7_000): Promise<T | null> {
+  return Promise.race([p, new Promise<null>(res => setTimeout(() => res(null), ms))]);
+}
 const KNOWN_TOKENS: Record<string, string> = {
   WELSH: IS_MAINNET ? 'SP3NE50GEXFG9SZGTT51P40X2CKYSZ5CC4ZTZ7A2G.welshcorgicoin-token' : MOCK,
   LEO:   IS_MAINNET ? 'SP1AY6K3PQV5MRT6R4S671NWW2FRVPKM0BR162CT6.leo-token'              : MOCK,
@@ -342,15 +354,10 @@ bot.action(/t_buy_(\d+)/, async (ctx) => {
   console.log(`[DIAG-QBUY:${Date.now()}] token resolved: ${tokenAddress ?? 'NOT FOUND'}`);
   if (!tokenAddress) return ctx.answerCbQuery('Session expired. Please request a new quote.', { show_alert: true });
 
-  console.log(`[DIAG-QBUY:${Date.now()}] calling bot.handleUpdate`);
-  bot.handleUpdate({
-    ...ctx.update,
-    message: { text: `/buy ${tokenAddress}`, from: ctx.from, chat: ctx.chat }
-  } as any);
-  console.log(`[DIAG-QBUY:${Date.now()}] bot.handleUpdate dispatched (not awaited)`);
-
   await ctx.answerCbQuery('Fetching quote...');
-  console.log(`[DIAG-QBUY:${Date.now()}] action handler complete`);
+  console.log(`[DIAG-QBUY:${Date.now()}] calling showBuyQuote directly`);
+  await showBuyQuote(ctx, tokenAddress);
+  console.log(`[DIAG-QBUY:${Date.now()}] showBuyQuote complete`);
 });
 
 bot.action('t_custom', async (ctx) => {
@@ -761,15 +768,10 @@ bot.command('copy', async (ctx) => {
 });
 
 // ─── Buy ──────────────────────────────────────────────────────────────────────
-bot.command('buy', async (ctx) => {
+async function showBuyQuote(ctx: any, tokenAddress: string) {
   const userId = ctx.from?.id;
-  console.log(`[DIAG-BUY:${Date.now()}] command handler entered, userId=${userId}, text="${ctx.message?.text}"`);
   if (!userId) return;
-
-  const text = ctx.message.text.split(' ');
-  if (text.length < 2) return ctx.reply('Usage: /buy <token_contract_address>');
-
-  const tokenAddress = text[1];
+  console.log(`[DIAG-BUY:${Date.now()}] showBuyQuote entered, userId=${userId}, tokenAddress=${tokenAddress}`);
 
   try {
     const res = await pool.query('SELECT id, address, trading_currency FROM users WHERE telegram_id = $1', [userId]);
@@ -781,16 +783,32 @@ bot.command('buy', async (ctx) => {
 
     const loadMsg = await ctx.reply('Fetching live token data... ⏳');
     console.log(`[DIAG-BUY:${Date.now()}] loadMsg sent, entering Promise.all`);
-    const [{ stx: stxBalance }, quote] = await Promise.all([
+
+    const isMock = MOCK_CONTRACTS.has(tokenAddress);
+    const riskFetch = isMock
+      ? Promise.resolve(null)
+      : withRiskTimeout(fetchTokenSignals(tokenAddress));
+
+    const [{ stx: stxBalance }, quote, riskSignals] = await Promise.all([
       getBalance(userAddress, true),
-      findBestPrice(currency, tokenAddress, 1, 'buy')  // quote for 1 STX → clean per-unit price
+      findBestPrice(currency, tokenAddress, 1, 'buy'),
+      riskFetch,
     ]);
     console.log(`[DIAG-BUY:${Date.now()}] Promise.all resolved, stxBalance=${stxBalance}, dex=${quote.dex}`);
 
-    // quote.quote.price = tokens per 1 STX (amountOut/amountIn)
-    const tokensPerStx   = quote.quote?.price ?? 0;
-    const stxPerToken    = tokensPerStx > 0 ? (1 / tokensPerStx) : 0;
-    const shortToken     = tokenAddress.split('.').pop() ?? tokenAddress;
+    // Build risk block
+    let riskBlock: string;
+    if (isMock) {
+      riskBlock = 'ℹ️ _Risk data unavailable — testnet mock token_';
+    } else if (!riskSignals) {
+      riskBlock = '⚠️ _Risk data unavailable — could not fetch signals_';
+    } else {
+      riskBlock = formatRiskInline(scoreToken(riskSignals));
+    }
+
+    const tokensPerStx = quote.quote?.price ?? 0;
+    const stxPerToken  = tokensPerStx > 0 ? (1 / tokensPerStx) : 0;
+    const shortToken   = tokenAddress.split('.').pop() ?? tokenAddress;
 
     const fmt = (n: number, decimals = 6) => n.toLocaleString('en-US', { maximumFractionDigits: decimals });
 
@@ -799,7 +817,10 @@ bot.command('buy', async (ctx) => {
 💰 1 ${currency} ≈ ${fmt(tokensPerStx, 2)} ${shortToken}
 💵 1 ${shortToken} ≈ ${fmt(stxPerToken, 8)} ${currency}
 📊 Source: ${quote.dex.toUpperCase()}
-💳 Balance: ${stxBalance} ${currency}`;
+💳 Balance: ${stxBalance} ${currency}
+
+──────────────────
+${riskBlock}`;
 
     const tId = await getTokenId(tokenAddress);
 
@@ -821,6 +842,12 @@ bot.command('buy', async (ctx) => {
     console.error('Error initiating buy', e);
     ctx.reply('❌ No liquidity pool found for this token. It may not be listed on any supported DEX (Velar, Bitflow).');
   }
+}
+
+bot.command('buy', async (ctx) => {
+  const text = ctx.message.text.split(' ');
+  if (text.length < 2) return ctx.reply('Usage: /buy <token_contract_address>');
+  await showBuyQuote(ctx, text[1]);
 });
 
 bot.action(/b_(\d+)_(\d+)/, async (ctx) => {

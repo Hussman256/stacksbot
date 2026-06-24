@@ -103,7 +103,7 @@ export async function executeBitflowSwap(
 
     const txOptions = {
       contractAddress: TESTNET_SURROGATE,
-      contractName: IS_MAINNET ? 'bitflow-core' : 'mock-bitflow-router-v6',
+      contractName: IS_MAINNET ? 'bitflow-core' : 'mock-bitflow-router-v7',
       functionName: 'swap-x-for-y',
       functionArgs,
       senderKey: privateKey,
